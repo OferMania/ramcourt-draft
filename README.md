@@ -1,2 +1,60 @@
 # ramcourt-draft
 Key Value Storage Implementation with Court Credential Verification
+
+## Local Testing
+
+Run `cargo build` to build code.
+Run `cargo run` to bring up server onto localhost
+
+From a different terminal window, you can interact with localhost
+
+Healthcheck the server:
+
+curl -i -X GET http://localhost:8080/health
+
+Set key "abcd" to value "Hello World":
+
+curl -i -X PUT http://localhost:8080/kv/abcd -H "Content-Type: text/plain" -d "Hello World"
+
+Get the value for key "abcd":
+
+curl -i -X GET http://localhost:8080/kv/abcd
+
+Chuck key "abcd":
+
+curl -i -X DELETE http://localhost:8080/clear
+
+Chuck all keys:
+
+curl -i -X DELETE http://localhost:8080/clear
+
+# Distributed Key-Value Store Challenge
+
+Build a distributed key-value store from scratch using the Raft consensus algorithm.
+
+## Stages
+
+1. **[http-api](https://clstr.io/kv-store/http-api/)** - Store and Retrieve Data
+2. **[persistence](https://clstr.io/kv-store/persistence/)** - Data Survives SIGTERM
+3. **[crash-recovery](https://clstr.io/kv-store/crash-recovery/)** - Data Survives SIGKILL
+4. **[leader-election](https://clstr.io/kv-store/leader-election/)** - Cluster Elects and Maintains Leader
+5. **[log-replication](https://clstr.io/kv-store/log-replication/)** - Data Replicates to All Nodes
+6. **[log-compaction](https://clstr.io/kv-store/log-compaction/)** - System Manages Log Growth
+7. **[membership-changes](https://clstr.io/kv-store/membership-changes/)** - Add and Remove Nodes One at a Time
+8. **[joint-consensus](https://clstr.io/kv-store/joint-consensus/)** - Add and Remove Nodes in Bulk
+
+## Getting Started
+
+1. Read the requirements for the current stage (linked above)
+2. Update the `Dockerfile` if required
+3. Run `clstr test` to verify your implementation
+4. Run `clstr next` to advance when tests pass
+
+## Resources
+
+- [Challenge Overview](https://clstr.io/kv-store/)
+- [How clstr Works](https://clstr.io/how-it-works/)
+- [CLI Guide](https://clstr.io/guides/cli/)
+- [CI/CD Setup](https://clstr.io/guides/ci-cd/)
+
+Run `clstr --help` to see all available commands.
