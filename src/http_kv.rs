@@ -11,10 +11,15 @@ fn key_is_valid(key: &String) -> bool {
     expected_regex.is_match(key)
 }
 
+pub async fn http_set_empty_key() -> impl IntoResponse {
+    (StatusCode::BAD_REQUEST, "key cannot be empty".to_string())
+}
+
+pub async fn http_unsupported() -> impl IntoResponse {
+    (StatusCode::METHOD_NOT_ALLOWED, "method not allowed".to_string())
+}
+
 pub async fn http_set(State(store): State<SharedStore>, Path(key): Path<String>, body: String) -> impl IntoResponse {
-    if key.is_empty() {
-        return (StatusCode::BAD_REQUEST, "key cannot be empty".to_string());
-    }
     if !key_is_valid(&key) {
         return (StatusCode::BAD_REQUEST, "key is invalid".to_string());
     }
@@ -30,9 +35,6 @@ pub async fn http_set(State(store): State<SharedStore>, Path(key): Path<String>,
 }
 
 pub async fn http_get(State(store): State<SharedStore>, Path(key): Path<String>) -> impl IntoResponse {
-    if key.is_empty() {
-        return (StatusCode::BAD_REQUEST, "key cannot be empty".to_string());
-    }
     if !key_is_valid(&key) {
         return (StatusCode::BAD_REQUEST, "key is invalid".to_string());
     }
@@ -44,15 +46,13 @@ pub async fn http_get(State(store): State<SharedStore>, Path(key): Path<String>)
 }
 
 pub async fn http_delete(State(store): State<SharedStore>, Path(key): Path<String>) -> impl IntoResponse {
-    if key.is_empty() {
-        return (StatusCode::BAD_REQUEST, "key cannot be empty".to_string());
-    }
     if !key_is_valid(&key) {
         return (StatusCode::BAD_REQUEST, "key is invalid".to_string());
     }
     let mut store = store.lock().unwrap();
     match store.delete(&key) {
-        Ok(_record) => (StatusCode::OK, "Key deleted successfully".to_string()),
+        Ok(Some(_record)) => (StatusCode::OK, "Key deleted successfully".to_string()),
+        Ok(None) => (StatusCode::OK, "Key deleted successfully".to_string()),
         Err(_e) => (StatusCode::NOT_FOUND, "key not found".to_string()),
     }
 }

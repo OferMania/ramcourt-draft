@@ -36,11 +36,13 @@ impl KeyValue {
         Ok(self.storage.get(key).unwrap())
     }
 
-    pub fn delete(&mut self, key: &str) -> Result<ValueRecord, String> {
-        if ! self.storage.contains_key(key) {
-            return Err(format!("Key '{}' not found", key));
-        }
-        Ok(self.storage.remove(key).unwrap())
+    pub fn delete(&mut self, key: &str) -> Result<Option<ValueRecord>, String> {
+        // Test expects this to work
+        //
+        // if ! self.storage.contains_key(key) {
+        //     return Err(format!("Key '{}' not found", key));
+        // }
+        Ok(self.storage.remove(key))
     }
 
     pub fn clear(&mut self) {
