@@ -1,10 +1,10 @@
-use axum::{Router, routing::{get, put, delete, post}, response::Html, http::StatusCode};
+use axum::{Router, routing::{get, put, delete, patch}, response::Html, http::StatusCode};
 use std::sync::{Arc, Mutex};
 
 mod kv;
 mod http_kv;
 use kv::KeyValue;
-use http_kv::{http_get, http_set, http_delete, http_clear, http_set_empty_key, http_unsupported};
+use http_kv::{http_get, http_set, http_delete, http_clear, http_get_table_version, http_set_empty_key, http_unsupported};
 
 pub type SharedStore = Arc<Mutex<KeyValue>>;
 
@@ -14,12 +14,15 @@ async fn main() {
     let app = Router::new()
         .route("/", get(root))
         .route("/kv/:key", get(http_get))
-        .route("/kv/:key", put(http_set))
+        .route("/kv/:key", put(http_set).post(http_set))
         .route("/kv/:key", delete(http_delete))
-        .route("/kv/:key", post(http_unsupported).patch(http_unsupported))
+        .route("/kv/:key", patch(http_unsupported))
         .route("/kv/", get(http_set_empty_key).put(http_set_empty_key).delete(http_set_empty_key).post(http_unsupported).patch(http_unsupported))
         .route("/clear", delete(http_clear))
         .route("/clear", get(http_unsupported).put(http_unsupported).post(http_unsupported).patch(http_unsupported))
+        .route("/table", delete(http_clear))
+        .route("/table", get(http_get_table_version))
+        .route("/table", put(http_unsupported).post(http_unsupported).patch(http_unsupported))
         .route("/health", get(healthcheck))
         .route("/health", put(http_unsupported).post(http_unsupported).patch(http_unsupported).delete(http_unsupported))
         .with_state(store);

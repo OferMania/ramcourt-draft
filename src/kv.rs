@@ -4,7 +4,8 @@ use std::time::{ SystemTime };
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct KeyValueRecord {
     pub key: String,
     pub value: String,
@@ -15,6 +16,7 @@ pub struct KeyValueRecord {
 }
 
 pub struct ValueRecord {
+    pub duration_secs: u64,
     pub expiration_secs: u64,
     pub version: Uuid,
     pub value: String,
@@ -70,6 +72,7 @@ impl KeyValue {
         let key_for_response = key.clone();
 
         let record = ValueRecord {
+            duration_secs: value_record.duration_secs,
             expiration_secs,
             version: new_version,
             value: value_record.value.clone(),
@@ -95,7 +98,7 @@ impl KeyValue {
         let external_record = KeyValueRecord {
             key: key.to_string(),
             value: record.value.clone(),
-            duration_secs: 0,
+            duration_secs: record.duration_secs,
             expiration_secs: record.expiration_secs,
             version: record.version,
             table_version: self.table_version,
@@ -127,6 +130,18 @@ impl KeyValue {
         }
         self.storage.clear();
         self.table_version = Uuid::new_v4();
+        let external_record = KeyValueRecord {
+            key: "".to_string(),
+            value: "".to_string(),
+            duration_secs: 0,
+            expiration_secs: 0,
+            version: Uuid::nil(),
+            table_version: self.table_version,
+        };
+        Ok(external_record)
+    }
+
+    pub fn get_table_version(&self) -> Result<KeyValueRecord, String> {
         let external_record = KeyValueRecord {
             key: "".to_string(),
             value: "".to_string(),

@@ -14,19 +14,41 @@ curl -i -X GET http://localhost:8080/health
 
 Set key "abcd" to value "Hello World":
 
-curl -i -X PUT http://localhost:8080/kv/abcd -H "Content-Type: text/plain" -d "Hello World"
+curl -i -X PUT http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d "{\"value\": \"Hello World\", \"duration_secs\": 180}"
 
 Get the value for key "abcd":
 
 curl -i -X GET http://localhost:8080/kv/abcd
 
-Chuck key "abcd":
+Record the version returned here if you WANT to update key "abcd", suppose it's 9bffaa74-fcf0-4020-a100-ff16ffab4003
 
-curl -i -X DELETE http://localhost:8080/clear
+The subsequent update REQUIRES you know the version of what you are changing. RamCourt REQUIRES clients to have the correct assumptions prior to updating.
 
-Chuck all keys:
+Now let's change the value for the key using our version.
 
-curl -i -X DELETE http://localhost:8080/clear
+curl -i -X POST http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d "{\"value\": \"Goodbye World\", \"duration_secs\": 360, \"version\":\"9bffaa74-fcf0-4020-a100-ff16ffab4003\"}"
+
+Record the version that comes from the output. Yes that version will be different than what you passed in. If you forget the version, you can always find it out from a GET like before:
+
+curl -i -X GET http://localhost:8080/kv/abcd
+
+Suppose you find out the updated version is 264f4578-d401-4acd-865f-31dae9f222d4
+
+To delete key "abcd", you gotta know that version. Then you do:
+
+curl -i -X DELETE http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d "{\"version\":\"264f4578-d401-4acd-865f-31dae9f222d4\"}"
+
+Now notice that ANYTIME you perform GET's, PUT's, or DELETE's, you get back a response with the table_version. (That's different from version, version is specific to a key-value entry, table_version is the version for the whole table) 
+
+Now suppose you forgot the table_version or are undecided on a query to find it, here's a simple way to get it:
+
+curl -i -X GET http://localhost:8080/table
+
+Suppse table_version is ff17b1fc-3e1b-4fec-83d9-22f30ad18efa
+
+To clear all keys in the table, you do:
+
+curl -i -X DELETE http://localhost:8080/table -H "Content-Type: application/json" -d "{\"table_version\":\"ff17b1fc-3e1b-4fec-83d9-22f30ad18efa\"}"
 
 # Distributed Key-Value Store Challenge
 

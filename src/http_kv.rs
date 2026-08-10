@@ -74,3 +74,11 @@ pub async fn http_clear(State(store): State<SharedStore>, Json(payload): Json<Ke
         Err(e) => (StatusCode::CONFLICT, Json(e)).into_response(),
     }
 }
+
+pub async fn http_get_table_version(State(store): State<SharedStore>) -> impl IntoResponse {
+    let store = store.lock().unwrap();
+    match store.get_table_version() {
+        Ok(table_version) => (StatusCode::OK, Json(table_version)).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, Json(e)).into_response(),
+    }
+}
