@@ -38,8 +38,7 @@ Now let's change the value for the key using our version:
 
 curl -i -X PUT http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d '{"value": "Goodbye World", "duration_secs": 360, "version":"9bffaa74-fcf0-4020-a100-ff16ffab4003"}'
 
-
-Record the version that comes from the output. Yes, that version will be different than what you passed in. If you forget the version, you can always find it out from a GET like before:
+Record the version that comes from the output (note: do not get confused with table_version, which is a different field). Note that the version that is output will be different than what you passed as input. If you forget the version, you can always find it out from a GET like before:
 
 curl -i -X GET http://localhost:8080/kv/abcd
 
