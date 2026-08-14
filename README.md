@@ -1,82 +1,118 @@
-# ramcourt-draft
-Key Value Storage Implementation with Court Credential Verification
+# RamCourt
+
+A Rust-based, strongly-consistent, fault-tolerant distributed key-value
+store, inspired by RAMCloud. RamCourt's defining property: every read,
+write, and delete requires clients to supply the correct current version
+(or table_version, for whole-table operations) before a mutation is
+permitted — a mandatory version-verification model, not an optional
+client-side check. This prevents accidental updates based on stale
+assumptions about the data's current state.
+
+RamCourt is currently a single-node, in-memory key-value store. See
+[Known Limitations](#known-limitations) for what's not built yet.
 
 ## Local Testing
 
-Run `cargo build` to build code.
-Run `cargo run` to bring up server onto localhost
+Run `cargo build` to build the code.
+Run `cargo run` to bring up the server on localhost.
 
-From a different terminal window, you can interact with localhost
+From a different terminal window, you can interact with localhost:
 
 Healthcheck the server:
-
 curl -i -X GET http://localhost:8080/health
+
 
 Set key "abcd" to value "Hello World":
 
-curl -i -X PUT http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d "{\"value\": \"Hello World\", \"duration_secs\": 180}"
+curl -i -X PUT http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d '{"value": "Hello World", "duration_secs": 180}'
 
 Get the value for key "abcd":
 
 curl -i -X GET http://localhost:8080/kv/abcd
 
-Record the version returned here if you WANT to update key "abcd", suppose it's 9bffaa74-fcf0-4020-a100-ff16ffab4003
+Record the version returned here if you want to update key "abcd" — suppose it's `9bffaa74-fcf0-4020-a100-ff16ffab4003`.
 
-The subsequent update REQUIRES you know the version of what you are changing. RamCourt REQUIRES clients to have the correct assumptions prior to updating.
+The subsequent update REQUIRES you know the version of what you are changing. RamCourt requires clients to have the correct assumptions prior to updating.
 
-Now let's change the value for the key using our version.
+Now let's change the value for the key using our version:
 
-curl -i -X POST http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d "{\"value\": \"Goodbye World\", \"duration_secs\": 360, \"version\":\"9bffaa74-fcf0-4020-a100-ff16ffab4003\"}"
+curl -i -X PUT http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d '{"value": "Goodbye World", "duration_secs": 360, "version":"9bffaa74-fcf0-4020-a100-ff16ffab4003"}'
 
-Record the version that comes from the output. Yes that version will be different than what you passed in. If you forget the version, you can always find it out from a GET like before:
+
+Record the version that comes from the output. Yes, that version will be different than what you passed in. If you forget the version, you can always find it out from a GET like before:
 
 curl -i -X GET http://localhost:8080/kv/abcd
 
-Suppose you find out the updated version is 264f4578-d401-4acd-865f-31dae9f222d4
+Suppose you find out the updated version is `264f4578-d401-4acd-865f-31dae9f222d4`.
 
-To delete key "abcd", you gotta know that version. Then you do:
+To delete key "abcd", you need to know that version:
 
-curl -i -X DELETE http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d "{\"version\":\"264f4578-d401-4acd-865f-31dae9f222d4\"}"
+curl -i -X DELETE http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d '{"version":"264f4578-d401-4acd-865f-31dae9f222d4"}'
 
-Now notice that ANYTIME you perform GET's, PUT's, or DELETE's, you get back a response with the table_version. (That's different from version, version is specific to a key-value entry, table_version is the version for the whole table) 
+Anytime you perform GETs, PUTs, or DELETEs, you get back a response with `table_version`. That's different from `version` — `version` is specific to a single key-value entry, `table_version` is the version for the whole table.
 
-Now suppose you forgot the table_version or are undecided on a query to find it, here's a simple way to get it:
+If you forget the `table_version`, here's a simple way to find it:
 
 curl -i -X GET http://localhost:8080/table
 
-Suppse table_version is ff17b1fc-3e1b-4fec-83d9-22f30ad18efa
+Suppose `table_version` is `ff17b1fc-3e1b-4fec-83d9-22f30ad18efa`.
 
-To clear all keys in the table, you do:
+To clear all keys in the table:
 
-curl -i -X DELETE http://localhost:8080/table -H "Content-Type: application/json" -d "{\"table_version\":\"ff17b1fc-3e1b-4fec-83d9-22f30ad18efa\"}"
+curl -i -X DELETE http://localhost:8080/table -H "Content-Type: application/json" -d '{"table_version":"ff17b1fc-3e1b-4fec-83d9-22f30ad18efa"}'
 
-# Distributed Key-Value Store Challenge
+## Testing
 
-Build a distributed key-value store from scratch using the Raft consensus algorithm.
+To quickly setup clstr-rc, which is clstr adapted for RamCourt's version verification, then run this command:
 
-## Stages
+chmod +x setup_clstr_rc.sh
+./setup_clstr_rc.sh
 
-1. **[http-api](https://clstr.io/kv-store/http-api/)** - Store and Retrieve Data
-2. **[persistence](https://clstr.io/kv-store/persistence/)** - Data Survives SIGTERM
-3. **[crash-recovery](https://clstr.io/kv-store/crash-recovery/)** - Data Survives SIGKILL
-4. **[leader-election](https://clstr.io/kv-store/leader-election/)** - Cluster Elects and Maintains Leader
-5. **[log-replication](https://clstr.io/kv-store/log-replication/)** - Data Replicates to All Nodes
-6. **[log-compaction](https://clstr.io/kv-store/log-compaction/)** - System Manages Log Growth
-7. **[membership-changes](https://clstr.io/kv-store/membership-changes/)** - Add and Remove Nodes One at a Time
-8. **[joint-consensus](https://clstr.io/kv-store/joint-consensus/)** - Add and Remove Nodes in Bulk
+Note that `main` branch of clstr-rc is used by default. To instead use a different branch in clstr-rc, you can do:
 
-## Getting Started
+chmod +x setup_clstr_rc.sh
+CLSTR_BRANCH='some-branch' ./setup_clstr_rc.sh
 
-1. Read the requirements for the current stage (linked above)
-2. Update the `Dockerfile` if required
-3. Run `clstr test` to verify your implementation
-4. Run `clstr next` to advance when tests pass
+After setup_clstr_rc.sh is ran, there should be a clstr tool present. But first, let's make sure RamCourt is built:
 
-## Resources
+cargo build
 
-- [Challenge Overview](https://clstr.io/kv-store/)
-- [How clstr Works](https://clstr.io/how-it-works/)
-- [CLI Guide](https://clstr.io/guides/cli/)
-- [CI/CD Setup](https://clstr.io/guides/ci-cd/)
+To run RamCourt against clstr tests, you can do:
 
-Run `clstr --help` to see all available commands.
+./clstr test
+
+Please note that RamCourt works against the first set of tests in clstr at the moment (http_api), but doing `./clstr next` will advance clstr internal-state to a set of tests that do not yet work for RamCourt.
+
+RamCourt's HTTP API is tested using clstr-rc, a fork of [clstr](https://github.com/clstr-io/clstr), adapted for RamCourt's version-verification response format: [clstr-rc](https://github.com/OferMania/clstr-rc). See that repo for build/setup instructions.
+
+## Known Limitations
+
+- Expiration (`duration_secs` input, `expiration_secs` on the entry) is tracked but not yet enforced — expired entries aren't cleaned up yet.
+- Single global table only; no multi-table support yet.
+- Single node only; no backup propagation or replication between nodes yet.
+- Recovery; if a node goes down, no attempt is made to recover it's data from other nodes and make a different node primary owner for that data.
+
+## Inspiration & Tooling
+
+The HTTP API and in-memory store stages were built following the stages
+outlined in [clstr.io's key-value store challenge](https://clstr.io/kv-store/),
+with reference to [this blog post on building an in-memory KV store](https://stephenmwangi.com/blog/in-memory-key-value-store/).
+Implementation is independent, in Rust rather than the challenge's
+reference Go implementation. Where the challenge's spec was silent,
+notable original design choices include:
+
+- Mandatory version-verification on every read, write, and delete —
+  not part of the base challenge, and the defining property of RamCourt.
+- `table_version`, naming chosen ahead of planned multi-table support
+  (see Known Limitations).
+
+Test tooling: [clstr-rc](https://github.com/OferMania/clstr-rc), a fork
+of clstr adapted to verify RamCourt's version-verification response
+format, including a 100-concurrent-write test confirming exactly one
+writer succeeds under contention.
+
+## License
+
+[Apache 2.0](./LICENSE). See [CONTRIBUTING.md](./CONTRIBUTING.md) and
+[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) for contribution guidelines.
+
