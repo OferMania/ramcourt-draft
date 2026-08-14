@@ -19,16 +19,22 @@ Run `cargo run` to bring up the server on localhost.
 From a different terminal window, you can interact with localhost:
 
 Healthcheck the server:
-curl -i -X GET http://localhost:8080/health
 
+```
+curl -i -X GET http://localhost:8080/health
+```
 
 Set key "abcd" to value "Hello World":
 
+```
 curl -i -X PUT http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d '{"value": "Hello World", "duration_secs": 180}'
+```
 
 Get the value for key "abcd":
 
+```
 curl -i -X GET http://localhost:8080/kv/abcd
+```
 
 Record the version returned here if you want to update key "abcd" — suppose it's `9bffaa74-fcf0-4020-a100-ff16ffab4003`.
 
@@ -36,49 +42,67 @@ The subsequent update REQUIRES you know the version of what you are changing. Ra
 
 Now let's change the value for the key using our version:
 
+```
 curl -i -X PUT http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d '{"value": "Goodbye World", "duration_secs": 360, "version":"9bffaa74-fcf0-4020-a100-ff16ffab4003"}'
+```
 
 Record the version that comes from the output (note: do not get confused with table_version, which is a different field). Note that the version that is output will be different than what you passed as input. If you forget the version, you can always find it out from a GET like before:
 
+```
 curl -i -X GET http://localhost:8080/kv/abcd
+```
 
 Suppose you find out the updated version is `264f4578-d401-4acd-865f-31dae9f222d4`.
 
 To delete key "abcd", you need to know that version:
 
+```
 curl -i -X DELETE http://localhost:8080/kv/abcd -H "Content-Type: application/json" -d '{"version":"264f4578-d401-4acd-865f-31dae9f222d4"}'
+```
 
 Anytime you perform GETs, PUTs, or DELETEs, you get back a response with `table_version`. That's different from `version` — `version` is specific to a single key-value entry, `table_version` is the version for the whole table.
 
 If you forget the `table_version`, here's a simple way to find it:
 
+```
 curl -i -X GET http://localhost:8080/table
+```
 
 Suppose `table_version` is `ff17b1fc-3e1b-4fec-83d9-22f30ad18efa`.
 
 To clear all keys in the table:
 
+```
 curl -i -X DELETE http://localhost:8080/table -H "Content-Type: application/json" -d '{"table_version":"ff17b1fc-3e1b-4fec-83d9-22f30ad18efa"}'
+```
 
 ## Testing
 
 To quickly setup clstr-rc, which is clstr adapted for RamCourt's version verification, then run this command:
 
+```
 chmod +x setup_clstr_rc.sh
 ./setup_clstr_rc.sh
+```
 
 Note that `main` branch of clstr-rc is used by default. To instead use a different branch in clstr-rc, you can do:
 
+```
 chmod +x setup_clstr_rc.sh
 CLSTR_BRANCH='some-branch' ./setup_clstr_rc.sh
+```
 
 After setup_clstr_rc.sh is ran, there should be a clstr tool present. But first, let's make sure RamCourt is built:
 
+```
 cargo build
+```
 
 To run RamCourt against clstr tests, you can do:
 
+```
 ./clstr test
+```
 
 Please note that RamCourt works against the first set of tests in clstr at the moment (http_api), but doing `./clstr next` will advance clstr internal-state to a set of tests that do not yet work for RamCourt.
 
