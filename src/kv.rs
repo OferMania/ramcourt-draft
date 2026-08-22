@@ -107,6 +107,9 @@ impl KeyValue {
     }
 
     pub fn delete(&mut self, key: &str, value_record: &KeyValueRecord) -> Result<KeyValueRecord, String> {
+        if !self.storage.contains_key(key) {
+            return Err(format!("key '{}' not found", key));
+        }
         let verification = self.verify_version(&key, value_record.version);
         if !verification.is_ok() {
             return Err(format!("version mismatch for key '{}': expected {}, got {}", key, verification.unwrap_err(), value_record.version));
