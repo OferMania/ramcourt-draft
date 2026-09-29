@@ -38,6 +38,10 @@ impl KeyValue {
         }
     }
 
+    pub fn clean(&mut self, current_time_secs: u64) {
+        self.storage.retain(|_, record| record.expiration_secs >= current_time_secs);
+    }
+
     fn verify_version(&self, key: &str, version: Uuid) -> Result<(), String> {
         match self.storage.get(key) {
             Some(record) => {

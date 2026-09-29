@@ -8,9 +8,28 @@ use http_kv::{http_get, http_set, http_delete, http_clear, http_get_table_versio
 
 pub type SharedStore = Arc<Mutex<KeyValue>>;
 
+async fn clean_expired(store: SharedStore) {
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+    loop {
+        interval.tick().await;
+        let current_time_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        {
+            // TODO: Support poisoned mutexes. If the lock is poisoned, we should log it and continue.
+            let mut store = store.lock().unwrap();
+            store.clean(current_time_secs);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let store: SharedStore = Arc::new(Mutex::new(KeyValue::new()));
+    let store_clone = Arc::clone(&store);
+    tokio::spawn(clean_expired(store_clone));
+
     let app = Router::new()
         .route("/", get(root))
         .route("/kv/:key", get(http_get))
