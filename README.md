@@ -110,7 +110,6 @@ RamCourt's HTTP API is tested using clstr-rc, a fork of [clstr](https://github.c
 
 ## Known Limitations
 
-- Expiration (`duration_secs` input, `expiration_secs` on the entry) is tracked but not yet enforced — expired entries aren't cleaned up yet.
 - Single global table only; no multi-table support yet.
 - Single node only; no backup propagation or replication between nodes yet.
 - Recovery; if a node goes down, no attempt is made to recover its data from other nodes and make a different node primary owner for that data.

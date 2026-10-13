@@ -5,8 +5,10 @@ use axum::{
 };
 
 use crate::kv::KeyValueRecord;
+use crate::kv::now_secs;
 
 use crate::SharedStore;
+use crate::lock_store;
 
 fn key_is_valid(key: &String) -> bool {
     let expected_regex = regex::Regex::new(r"^([a-zA-Z0-9]|_|\-|\.|:)+$").unwrap();
@@ -28,8 +30,9 @@ pub async fn http_set(State(store): State<SharedStore>, Path(key): Path<String>,
     if payload.value.is_empty() {
         return (StatusCode::BAD_REQUEST, Json("value cannot be empty")).into_response();
     }
-    let mut store = store.lock().unwrap();
-    match store.set(key, &payload) {
+    let current_time_secs = now_secs();
+    let mut store = lock_store(&store);
+    match store.set(key, &payload, current_time_secs) {
         Ok(record) => (StatusCode::OK, Json(record)).into_response(),
         Err(e) => {
             if payload.version != uuid::Uuid::nil() {
@@ -44,8 +47,9 @@ pub async fn http_get(State(store): State<SharedStore>, Path(key): Path<String>)
     if !key_is_valid(&key) {
         return (StatusCode::BAD_REQUEST, Json("key is invalid")).into_response();
     }
-    let store = store.lock().unwrap();
-    match store.get(&key) {
+    let current_time_secs = now_secs();
+    let store = lock_store(&store);
+    match store.get(&key, current_time_secs) {
         Ok(record) => (StatusCode::OK, Json(record)).into_response(),
         Err(_e) => (StatusCode::NOT_FOUND, Json("key not found")).into_response(),
     }
@@ -55,8 +59,9 @@ pub async fn http_delete(State(store): State<SharedStore>, Path(key): Path<Strin
     if !key_is_valid(&key) {
         return (StatusCode::BAD_REQUEST, Json("key is invalid")).into_response();
     }
-    let mut store = store.lock().unwrap();
-    match store.delete(&key, &payload) {
+    let current_time_secs = now_secs();
+    let mut store = lock_store(&store);
+    match store.delete(&key, &payload, current_time_secs) {
         Ok(record) => (StatusCode::OK, Json(record)).into_response(),
         Err(e) => {
             if payload.version != uuid::Uuid::nil() {
@@ -68,7 +73,7 @@ pub async fn http_delete(State(store): State<SharedStore>, Path(key): Path<Strin
 }
 
 pub async fn http_clear(State(store): State<SharedStore>, Json(payload): Json<KeyValueRecord>) -> impl IntoResponse {
-    let mut store = store.lock().unwrap();
+    let mut store = lock_store(&store);
     match store.clear(&payload) {
         Ok(record) => (StatusCode::OK, Json(record)).into_response(),
         Err(e) => (StatusCode::CONFLICT, Json(e)).into_response(),
@@ -76,7 +81,7 @@ pub async fn http_clear(State(store): State<SharedStore>, Json(payload): Json<Ke
 }
 
 pub async fn http_get_table_version(State(store): State<SharedStore>) -> impl IntoResponse {
-    let store = store.lock().unwrap();
+    let store = lock_store(&store);
     match store.get_table_version() {
         Ok(table_version) => (StatusCode::OK, Json(table_version)).into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, Json(e)).into_response(),
