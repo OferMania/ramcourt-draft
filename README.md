@@ -11,6 +11,8 @@ assumptions about the data's current state.
 RamCourt is currently a single-node, in-memory key-value store. See
 [Known Limitations](#known-limitations) for what's not built yet.
 
+See [Documents](#documents) for related RamCourt articles.
+
 ## Local Testing
 
 Run `cargo build` to build the code.
@@ -132,6 +134,12 @@ Test tooling: [clstr-rc](https://github.com/OferMania/clstr-rc), a fork
 of clstr adapted to verify RamCourt's version-verification response
 format, including a 100-concurrent-write test confirming exactly one
 writer succeeds under contention.
+
+## Documents
+
+Here is a current list of Discussion Documents for RamCourt:
+
+- [Why UUID for Versions](./docs/why-uuid-versions.md)
 
 ## License
 
