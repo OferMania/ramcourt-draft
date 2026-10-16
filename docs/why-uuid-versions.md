@@ -14,4 +14,4 @@ In RAMCloud, one number does two jobs: it guards client writes, and it orders co
 
 **Tradeoffs.** The UUID costs 16 extra bytes per object. The primary must also send it with every backup write, and recovery replay must preserve it instead of regenerating it. Neither is built yet.
 
-**Open questions:** Has anyone hit a case where version ordering mattered beyond recovery replay? And how do you order a recreated key against its tombstone? I’d like to hear your war stories on building key-value storage.
+**Open questions:** Has anyone hit a case where version ordering mattered beyond recovery replay? And how do you order a recreated key against its tombstone? I’d like to hear your war stories on building key-value storage. Replies welcome in [Discussions](https://github.com/OferMania/ramcourt-draft/discussions/7).
