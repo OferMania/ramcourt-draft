@@ -1,10 +1,10 @@
 # RamCourt
 
 A Rust-based, strongly-consistent, fault-tolerant distributed key-value
-store, inspired by RAMCloud. RamCourt's defining property: every read,
-write, and delete requires clients to supply the correct current version
-(or table_version, for whole-table operations) before a mutation is
-permitted — a mandatory version-verification model, not an optional
+store, inspired by RAMCloud. RamCourt's defining property: every update,
+delete, and table clear requires clients to supply the correct current
+version (or table_version, for whole-table operations) before a mutation
+is permitted — a mandatory version-verification model, not an optional
 client-side check. This prevents accidental updates based on stale
 assumptions about the data's current state.
 
@@ -125,8 +125,9 @@ Implementation is independent, in Rust rather than the challenge's
 reference Go implementation. Where the challenge's spec was silent,
 notable original design choices include:
 
-- Mandatory version-verification on every read, write, and delete —
-  not part of the base challenge, and the defining property of RamCourt.
+- Mandatory version-verification on every update, delete, and table
+  clear — not part of the base challenge, and the defining property
+  of RamCourt.
 - `table_version`, naming chosen ahead of planned multi-table support
   (see Known Limitations).
 
@@ -134,6 +135,16 @@ Test tooling: [clstr-rc](https://github.com/OferMania/clstr-rc), a fork
 of clstr adapted to verify RamCourt's version-verification response
 format, including a 100-concurrent-write test confirming exactly one
 writer succeeds under contention.
+
+## Expiration
+RamCourt has a duration_secs field, which controls how long a key lives. If
+it’s omitted, the key expires after a default of 300 seconds. A value of 0
+means the key never expires. Any other value expires the key that many
+seconds after the write. Each write sets the lifetime from scratch, so omitting
+duration_secs on an update gives the default again, not the previous duration.
+Expired keys are treated as absent immediately: reads return 404, and a new key
+can be created without supplying the old version. A background task frees the
+memory about once per second, but nothing depends on that timing
 
 ## Documents
 
