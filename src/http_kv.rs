@@ -27,9 +27,6 @@ pub async fn http_set(State(store): State<SharedStore>, Path(key): Path<String>,
     if !key_is_valid(&key) {
         return (StatusCode::BAD_REQUEST, Json("key is invalid")).into_response();
     }
-    if payload.value.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json("value cannot be empty")).into_response();
-    }
     let current_time_secs = now_secs();
     let mut store = lock_store(&store);
     match store.set(key, &payload, current_time_secs) {
