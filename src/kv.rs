@@ -7,7 +7,7 @@ use uuid::Uuid;
 #[serde(default)]
 pub struct KeyValueRecord {
     pub key: String,
-    pub value: String,
+    pub value: Option<String>,
     pub duration_secs: Option<u64>,
     pub expiration_secs: Option<u64>,
     pub version: Uuid,
@@ -82,6 +82,15 @@ impl KeyValue {
 
         // Compute everything the response needs BEFORE key/record get moved into storage.
         let prior_record = self.live(&key, current_time_secs);
+        if prior_record.is_none() && value_record.value.is_none() {
+            return Err(format!("new key '{}' requires a value on initialization", key));
+        }
+        let value = if value_record.value.is_some() {
+            value_record.value.clone().unwrap()
+        } else {
+            prior_record.unwrap().value.clone()
+        };
+
         let duration_secs = match value_record.duration_secs {
             None if prior_record.is_some() => prior_record.unwrap().duration_secs,
             None => DEFAULT_TTL_SECS,
@@ -97,13 +106,13 @@ impl KeyValue {
             duration_secs,
             expiration_secs,
             version: new_version,
-            value: value_record.value.clone(),
+            value: value.clone(),
         };
         self.storage.insert(key, record);
         self.table_version = Uuid::new_v4();
         let external_record = KeyValueRecord {
             key: key_for_response,
-            value: value_record.value.clone(),
+            value: Some(value),
             duration_secs: Some(duration_secs),
             expiration_secs: Some(expiration_secs),
             version: new_version,
@@ -117,7 +126,7 @@ impl KeyValue {
             .ok_or_else(|| format!("key '{}' not found", key))?;
         Ok(KeyValueRecord {
             key: key.to_string(),
-            value: record.value.clone(),
+            value: Some(record.value.clone()),
             duration_secs: Some(record.duration_secs),
             expiration_secs: Some(record.expiration_secs),
             version: record.version,
@@ -137,7 +146,7 @@ impl KeyValue {
         self.table_version = Uuid::new_v4();
         let external_record = KeyValueRecord {
             key: key.to_string(),
-            value: "".to_string(),
+            value: None,
             duration_secs: None,
             expiration_secs: None,
             version: Uuid::nil(),
@@ -154,7 +163,7 @@ impl KeyValue {
         self.table_version = Uuid::new_v4();
         let external_record = KeyValueRecord {
             key: "".to_string(),
-            value: "".to_string(),
+            value: None,
             duration_secs: None,
             expiration_secs: None,
             version: Uuid::nil(),
@@ -166,7 +175,7 @@ impl KeyValue {
     pub fn get_table_version(&self) -> Result<KeyValueRecord, String> {
         let external_record = KeyValueRecord {
             key: "".to_string(),
-            value: "".to_string(),
+            value: None,
             duration_secs: None,
             expiration_secs: None,
             version: Uuid::nil(),
@@ -180,31 +189,31 @@ impl KeyValue {
 mod tests {
     use super::*;
 
-    fn rec(value: &str, duration: Option<u64>, version: Option<Uuid>) -> KeyValueRecord {
-        KeyValueRecord { value: value.into(), duration_secs: duration, version: version.unwrap_or_else(Uuid::nil), ..Default::default() }
+    fn rec(value: Option<String>, duration: Option<u64>, version: Option<Uuid>) -> KeyValueRecord {
+        KeyValueRecord { value: value, duration_secs: duration, version: version.unwrap_or_else(Uuid::nil), ..Default::default() }
     }
 
     #[test]
     fn expired_key_is_absent_before_sweeper_runs() {
         let mut kv = KeyValue::new();
-        kv.set("k".into(), &rec("v", Some(2), None), 1_000).unwrap();
+        kv.set("k".into(), &rec(Some("v".into()), Some(2), None), 1_000).unwrap();
         assert!(kv.get("k", 1_001).is_ok());
         assert!(kv.get("k", 1_002).is_err()); // expires exactly at 1002
         // recreate with a nil version without any clean() call
-        assert!(kv.set("k".into(), &rec("v2", Some(2), None), 1_002).is_ok());
+        assert!(kv.set("k".into(), &rec(Some("v2".into()), Some(2), None), 1_002).is_ok());
     }
 
     #[test]
     fn zero_duration_never_expires() {
         let mut kv = KeyValue::new();
-        kv.set("k".into(), &rec("v", Some(0), None), 1_000).unwrap();
+        kv.set("k".into(), &rec(Some("v".into()), Some(0), None), 1_000).unwrap();
         assert!(kv.get("k", u64::MAX - 1).is_ok());
     }
 
     #[test]
     fn omitted_duration_nonexistent_uses_default_ttl() {
         let mut kv = KeyValue::new();
-        let r = kv.set("k".into(), &rec("v", None, None), 1_000).unwrap();
+        let r = kv.set("k".into(), &rec(Some("v".into()), None, None), 1_000).unwrap();
         assert_eq!(r.duration_secs, Some(DEFAULT_TTL_SECS));
         assert!(kv.get("k", 1_000 + DEFAULT_TTL_SECS - 1).is_ok());
         assert!(kv.get("k", 1_000 + DEFAULT_TTL_SECS).is_err());
@@ -213,8 +222,8 @@ mod tests {
     #[test]
     fn omitted_duration_existent_uses_prior_ttl() {
         let mut kv = KeyValue::new();
-        let r0 = kv.set("k".into(), &rec("v", Some(100), None), 1_000).unwrap();
-        let r = kv.set("k".into(), &rec("v2", None, Some(r0.version)), 1_005).unwrap();
+        let r0 = kv.set("k".into(), &rec(Some("v".into()), Some(100), None), 1_000).unwrap();
+        let r = kv.set("k".into(), &rec(Some("v2".into()), None, Some(r0.version)), 1_005).unwrap();
         assert_eq!(r.duration_secs, Some(100));
         assert!(kv.get("k", 1_005 + 100 - 1).is_ok());
         assert!(kv.get("k", 1_005 + 100).is_err());
@@ -223,7 +232,36 @@ mod tests {
     #[test]
     fn huge_duration_saturates_instead_of_overflowing() {
         let mut kv = KeyValue::new();
-        let r = kv.set("k".into(), &rec("v", Some(u64::MAX), None), 1_000).unwrap();
+        let r = kv.set("k".into(), &rec(Some("v".into()), Some(u64::MAX), None), 1_000).unwrap();
         assert_eq!(r.expiration_secs, Some(u64::MAX));
+    }
+
+    #[test]
+    fn omitted_value_on_create_is_error() {
+        let mut kv = KeyValue::new();
+        let r0 = kv.set("k".into(), &rec(None, Some(100), None), 1_000);
+        assert!(r0.is_err());
+    }
+
+    #[test]
+    fn omitted_value_on_update_preserves_value() {
+        let mut kv = KeyValue::new();
+        let r0 = kv.set("k".into(), &rec(Some("v".into()), Some(100), None), 1_000).unwrap();
+        let r = kv.set("k".into(), &rec(None, Some(200), Some(r0.version)), 1_005).unwrap();
+        assert_eq!(r.duration_secs, Some(200));
+        assert_eq!(r.value, Some("v".into()));
+        assert!(kv.get("k", 1_005 + 200 - 1).is_ok());
+        assert!(kv.get("k", 1_005 + 200).is_err());
+    }
+
+    #[test]
+    fn omitted_value_and_duration_on_update_renews() {
+        let mut kv = KeyValue::new();
+        let r0 = kv.set("k".into(), &rec(Some("v".into()), Some(100), None), 1_000).unwrap();
+        let r = kv.set("k".into(), &rec(None, None, Some(r0.version)), 1_005).unwrap();
+        assert_eq!(r.duration_secs, Some(100));
+        assert_eq!(r.value, Some("v".into()));
+        assert!(kv.get("k", 1_005 + 100 - 1).is_ok());
+        assert!(kv.get("k", 1_005 + 100).is_err());
     }
 }
