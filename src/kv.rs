@@ -81,7 +81,9 @@ impl KeyValue {
         }
 
         // Compute everything the response needs BEFORE key/record get moved into storage.
+        let prior_record = self.live(&key, current_time_secs);
         let duration_secs = match value_record.duration_secs {
+            None if prior_record.is_some() => prior_record.unwrap().duration_secs,
             None => DEFAULT_TTL_SECS,
             Some(d) => d,
         };
@@ -178,40 +180,50 @@ impl KeyValue {
 mod tests {
     use super::*;
 
-    fn rec(value: &str, duration: Option<u64>) -> KeyValueRecord {
-        KeyValueRecord { value: value.into(), duration_secs: duration, ..Default::default() }
+    fn rec(value: &str, duration: Option<u64>, version: Option<Uuid>) -> KeyValueRecord {
+        KeyValueRecord { value: value.into(), duration_secs: duration, version: version.unwrap_or_else(Uuid::nil), ..Default::default() }
     }
 
     #[test]
     fn expired_key_is_absent_before_sweeper_runs() {
         let mut kv = KeyValue::new();
-        kv.set("k".into(), &rec("v", Some(2)), 1_000).unwrap();
+        kv.set("k".into(), &rec("v", Some(2), None), 1_000).unwrap();
         assert!(kv.get("k", 1_001).is_ok());
         assert!(kv.get("k", 1_002).is_err()); // expires exactly at 1002
         // recreate with a nil version without any clean() call
-        assert!(kv.set("k".into(), &rec("v2", Some(2)), 1_002).is_ok());
+        assert!(kv.set("k".into(), &rec("v2", Some(2), None), 1_002).is_ok());
     }
 
     #[test]
     fn zero_duration_never_expires() {
         let mut kv = KeyValue::new();
-        kv.set("k".into(), &rec("v", Some(0)), 1_000).unwrap();
+        kv.set("k".into(), &rec("v", Some(0), None), 1_000).unwrap();
         assert!(kv.get("k", u64::MAX - 1).is_ok());
     }
 
     #[test]
-    fn omitted_duration_uses_default_ttl() {
+    fn omitted_duration_nonexistent_uses_default_ttl() {
         let mut kv = KeyValue::new();
-        let r = kv.set("k".into(), &rec("v", None), 1_000).unwrap();
+        let r = kv.set("k".into(), &rec("v", None, None), 1_000).unwrap();
         assert_eq!(r.duration_secs, Some(DEFAULT_TTL_SECS));
         assert!(kv.get("k", 1_000 + DEFAULT_TTL_SECS - 1).is_ok());
         assert!(kv.get("k", 1_000 + DEFAULT_TTL_SECS).is_err());
     }
 
     #[test]
+    fn omitted_duration_existent_uses_prior_ttl() {
+        let mut kv = KeyValue::new();
+        let r0 = kv.set("k".into(), &rec("v", Some(100), None), 1_000).unwrap();
+        let r = kv.set("k".into(), &rec("v2", None, Some(r0.version)), 1_005).unwrap();
+        assert_eq!(r.duration_secs, Some(100));
+        assert!(kv.get("k", 1_005 + 100 - 1).is_ok());
+        assert!(kv.get("k", 1_005 + 100).is_err());
+    }
+
+    #[test]
     fn huge_duration_saturates_instead_of_overflowing() {
         let mut kv = KeyValue::new();
-        let r = kv.set("k".into(), &rec("v", Some(u64::MAX)), 1_000).unwrap();
+        let r = kv.set("k".into(), &rec("v", Some(u64::MAX), None), 1_000).unwrap();
         assert_eq!(r.expiration_secs, Some(u64::MAX));
     }
 }
