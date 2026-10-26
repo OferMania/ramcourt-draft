@@ -136,7 +136,7 @@ of clstr adapted to verify RamCourt's version-verification response
 format, including a 100-concurrent-write test confirming exactly one
 writer succeeds under contention.
 
-## Expiration
+## Expiration and Writes
 RamCourt has a duration_secs field, which controls how long a key lives. A
 value of 0 means the key never expires. Any other value expires the key that
 many seconds after the write. If duration_secs is omitted, it is assumed to be
@@ -148,6 +148,14 @@ now, ie previous duration_secs is assumed.
 Expired keys are treated as absent immediately: reads return 404, and a new key
 can be created without supplying the old version. A background task frees the
 memory about once per second, but nothing depends on that timing
+
+UUID for table does not change when a key expires. UUID for a value and table
+do not change if a client is simply "refreshing" a key without changing value.
+However, if an update changes the value then UUID for the key and table will
+change. If an update removes an unexpired key, then table UUID will change.
+
+value field must exist and be nonempty on creating a key. When value field is
+empty or omitted, we assume to be renewing the key with current value unchanged.
 
 ## Documents
 
