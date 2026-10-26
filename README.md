@@ -152,10 +152,13 @@ memory about once per second, but nothing depends on that timing
 UUID for table does not change when a key expires. UUID for a value and table
 do not change if a client is simply "refreshing" a key without changing value.
 However, if an update changes the value then UUID for the key and table will
-change. If an update removes an unexpired key, then table UUID will change.
+change. If an update change the key from nonexpiring to expiring, or vice
+versa, the UUID's for key and table will also change. If an update removes an
+unexpired key, then table UUID will change.
 
-value field must exist and be nonempty on creating a key. When value field is
-empty or omitted, we assume to be renewing the key with current value unchanged.
+Value field must exist and be nonempty on creating a key. On an update, when
+value field is empty or omitted, we assume to be renewing the key with current
+value unchanged.
 
 ## Documents
 

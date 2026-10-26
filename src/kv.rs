@@ -64,9 +64,9 @@ impl KeyValue {
 
     fn verify_empty(&self, version: Uuid) -> Result<(), String> {
         if version != Uuid::nil() {
-            return Err(format!("{}", Uuid::nil()));
+            Err(format!("{}", Uuid::nil()))
         } else {
-            return Ok(());
+            Ok(())
         }
     }
 
@@ -81,26 +81,19 @@ impl KeyValue {
     pub fn set(&mut self, key: String, value_record: &KeyValueRecord, current_time_secs: u64) -> Result<KeyValueRecord, String> {
         let new_key_version = Uuid::new_v4();
         let new_table_version = Uuid::new_v4();
-        let verification = self.verify_version(&key, value_record.version, current_time_secs);
-        if !verification.is_ok() {
-            return Err(format!("version mismatch for key '{}': expected {}, got {}", key, verification.unwrap_err(), value_record.version));
+        if let Err(reason) = self.verify_version(&key, value_record.version, current_time_secs) {
+            return Err(format!("version mismatch for key '{}': expected {}, got {}", key, reason, value_record.version));
         }
 
         // Compute everything the response needs BEFORE key/record get moved into storage.
         let prior_record = self.live(&key, current_time_secs);
         let value = match (&value_record.value, prior_record) {
-            (Some(v), _) if v != "" => v.clone(),
+            (Some(v), _) if !v.is_empty() => v.clone(),
             (_, Some(p)) => p.value.clone(),
             _ => return Err(format!("new key '{}' requires a value on initialization", key)),
         };
-        let setting_new_value = match prior_record {
-            None => true,
-            _ => false,
-        };
-        let changing_existing_value = match (&value_record.value, prior_record) {
-            (Some(v), Some(p)) if v != "" && v != &p.value => true,
-            _ => false,
-        };
+        let setting_new_value = prior_record.is_none();
+        let changing_existing_value = matches!((&value_record.value, prior_record), (Some(v), Some(p)) if !v.is_empty() && v != &p.value);
 
         let duration_secs = match (value_record.duration_secs, prior_record) {
             (Some(d), _) => d,
@@ -140,7 +133,7 @@ impl KeyValue {
             version: new_version,
             table_version: self.table_version,
         };
-        return Ok(external_record);
+        Ok(external_record)
     }
 
     pub fn get(&self, key: &str, current_time_secs: u64) -> Result<KeyValueRecord, String> {
@@ -161,9 +154,8 @@ impl KeyValue {
         if self.live(key, current_time_secs).is_none() {
             return Err(format!("key '{}' not found", key));
         }
-        let verification = self.verify_version(&key, value_record.version, current_time_secs);
-        if !verification.is_ok() {
-            return Err(format!("version mismatch for key '{}': expected {}, got {}", key, verification.unwrap_err(), value_record.version));
+        if let Err(reason) = self.verify_version(key, value_record.version, current_time_secs) {
+            return Err(format!("version mismatch for key '{}': expected {}, got {}", key, reason, value_record.version));
         }
         self.storage.remove(key);
         self.table_version = new_table_version;

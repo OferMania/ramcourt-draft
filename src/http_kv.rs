@@ -10,7 +10,7 @@ use crate::kv::now_secs;
 use crate::SharedStore;
 use crate::lock_store;
 
-fn key_is_valid(key: &String) -> bool {
+fn key_is_valid(key: &str) -> bool {
     let expected_regex = regex::Regex::new(r"^([a-zA-Z0-9]|_|\-|\.|:)+$").unwrap();
     expected_regex.is_match(key)
 }
