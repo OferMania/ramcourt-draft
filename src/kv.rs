@@ -50,6 +50,10 @@ impl KeyValue {
         now >= record.expiration_secs
     }
 
+    fn is_forever(duration_secs: u64) -> bool {
+        duration_secs == 0 || duration_secs == u64::MAX
+    }
+
     fn live(&self, key: &str, now: u64) -> Option<&ValueRecord> {
         self.storage.get(key).filter(|r| !Self::is_expired(r, now))
     }
@@ -75,6 +79,8 @@ impl KeyValue {
     }
 
     pub fn set(&mut self, key: String, value_record: &KeyValueRecord, current_time_secs: u64) -> Result<KeyValueRecord, String> {
+        let new_key_version = Uuid::new_v4();
+        let new_table_version = Uuid::new_v4();
         let verification = self.verify_version(&key, value_record.version, current_time_secs);
         if !verification.is_ok() {
             return Err(format!("version mismatch for key '{}': expected {}, got {}", key, verification.unwrap_err(), value_record.version));
@@ -95,19 +101,24 @@ impl KeyValue {
             (Some(v), Some(p)) if v != "" && v != &p.value => true,
             _ => false,
         };
-        let upserting_value = setting_new_value || changing_existing_value;
 
         let duration_secs = match (value_record.duration_secs, prior_record) {
             (Some(d), _) => d,
             (None, Some(p)) => p.duration_secs,
             (None, None) => DEFAULT_TTL_SECS,
         };
-        let expiration_secs = if duration_secs == 0 {u64::MAX} else { 
+        let changing_duration_behavior = match (value_record.duration_secs, prior_record) {
+            (_, None) => true,
+            (Some(d), Some(p)) if Self::is_forever(d) != Self::is_forever(p.duration_secs) => true,
+            _ => false,
+        };
+        let expiration_secs = if Self::is_forever(duration_secs) {u64::MAX} else { 
             current_time_secs.saturating_add(duration_secs)
         };
+        let upserting_value = setting_new_value || changing_existing_value || changing_duration_behavior;
         let new_version = match (prior_record, upserting_value) {
             (Some(p), false) => p.version,
-            _ => Uuid::new_v4(),
+            _ => new_key_version,
         };
         let key_for_response = key.clone();
 
@@ -119,7 +130,7 @@ impl KeyValue {
         };
         self.storage.insert(key, record);
         if upserting_value {
-            self.table_version = Uuid::new_v4();
+            self.table_version = new_table_version;
         }
         let external_record = KeyValueRecord {
             key: key_for_response,
@@ -146,6 +157,7 @@ impl KeyValue {
     }
 
     pub fn delete(&mut self, key: &str, value_record: &KeyValueRecord, current_time_secs: u64) -> Result<KeyValueRecord, String> {
+        let new_table_version = Uuid::new_v4();
         if self.live(key, current_time_secs).is_none() {
             return Err(format!("key '{}' not found", key));
         }
@@ -154,7 +166,7 @@ impl KeyValue {
             return Err(format!("version mismatch for key '{}': expected {}, got {}", key, verification.unwrap_err(), value_record.version));
         }
         self.storage.remove(key);
-        self.table_version = Uuid::new_v4();
+        self.table_version = new_table_version;
         let external_record = KeyValueRecord {
             key: key.to_string(),
             value: None,
@@ -167,11 +179,12 @@ impl KeyValue {
     }
 
     pub fn clear(&mut self, value_record: &KeyValueRecord) -> Result<KeyValueRecord, String> {
+        let new_table_version = Uuid::new_v4();
         if value_record.table_version != self.table_version {
             return Err(format!("table_version mismatch: expected {}, got {}", self.table_version, value_record.table_version));
         }
         self.storage.clear();
-        self.table_version = Uuid::new_v4();
+        self.table_version = new_table_version;
         let external_record = KeyValueRecord {
             key: "".to_string(),
             value: None,
@@ -319,6 +332,26 @@ mod tests {
         assert_ne!(r1.version, r3.version);
         assert!(kv.get("k", 1_070 + 200 - 1).is_ok());
         assert!(kv.get("k", 1_070 + 200).is_err());
+    }
+
+    #[test]
+    fn changing_duration_behavior_gives_new_version() {
+        let mut kv = KeyValue::new();
+        let r0 = kv.set("k".into(), &rec(Some("v".into()), Some(100), None), 1_000).unwrap();
+        assert!(kv.set("k".into(), &rec(None, None, None), 1_005).is_err());               // missing version
+        assert!(kv.set("k".into(), &rec(None, None, Some(Uuid::new_v4())), 1_005).is_err()); // wrong version
+        let r1 = kv.set("k".into(), &rec(None, Some(0), Some(r0.version)), 1_005).unwrap();
+        assert_ne!(r0.version, r1.version);
+        assert_eq!(r1.duration_secs, Some(0));
+        assert_eq!(r1.value, Some("v".into()));
+        assert!(kv.get("k", 1_005 + 100).is_ok());
+        assert!(kv.get("k", u64::MAX - 1).is_ok());
+        let r2 = kv.set("k".into(), &rec(None, Some(150), Some(r1.version)), 1_030).unwrap();
+        assert_ne!(r1.version, r2.version);
+        assert_eq!(r2.duration_secs, Some(150));
+        assert_eq!(r2.value, Some("v".into()));
+        assert!(kv.get("k", 1_030 + 150 - 1).is_ok());
+        assert!(kv.get("k", 1_030 + 150).is_err());
     }
 
     #[test]
