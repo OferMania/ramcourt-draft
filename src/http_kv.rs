@@ -10,7 +10,7 @@ use crate::kv::now_secs;
 use crate::SharedStore;
 use crate::lock_store;
 
-fn key_is_valid(key: &String) -> bool {
+fn key_is_valid(key: &str) -> bool {
     let expected_regex = regex::Regex::new(r"^([a-zA-Z0-9]|_|\-|\.|:)+$").unwrap();
     expected_regex.is_match(key)
 }
@@ -26,9 +26,6 @@ pub async fn http_unsupported() -> impl IntoResponse {
 pub async fn http_set(State(store): State<SharedStore>, Path(key): Path<String>, Json(payload): Json<KeyValueRecord>) -> impl IntoResponse {
     if !key_is_valid(&key) {
         return (StatusCode::BAD_REQUEST, Json("key is invalid")).into_response();
-    }
-    if payload.value.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json("value cannot be empty")).into_response();
     }
     let current_time_secs = now_secs();
     let mut store = lock_store(&store);
