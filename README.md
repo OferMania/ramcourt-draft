@@ -164,6 +164,7 @@ value unchanged.
 
 Here is a current list of Discussion Documents for RamCourt:
 
+- [Design Notes](./docs/design-notes.md)
 - [Why UUID for Versions](./docs/why-uuid-versions.md)
 
 ## License
