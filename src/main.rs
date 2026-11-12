@@ -5,7 +5,7 @@ mod kv;
 mod http_kv;
 mod server_state;
 use kv::KeyValue;
-use http_kv::{http_get, http_set, http_delete, http_clear, http_get_table_version, http_set_empty_key, http_unsupported, get_server_info};
+use http_kv::{http_get, http_set, http_delete, http_set_empty_key, http_unsupported, get_server_info};
 use kv::now_secs;
 use server_state::ServerState;
 use server_state::clean_expired;
@@ -35,11 +35,11 @@ async fn main() {
         .route("/kv/:key", delete(http_delete))
         .route("/kv/:key", patch(http_unsupported))
         .route("/kv/", get(http_set_empty_key).put(http_set_empty_key).delete(http_set_empty_key).post(http_unsupported).patch(http_unsupported))
-        .route("/clear", delete(http_clear))
-        .route("/clear", get(http_unsupported).put(http_unsupported).post(http_unsupported).patch(http_unsupported))
-        .route("/table", delete(http_clear))
-        .route("/table", get(http_get_table_version))
-        .route("/table", put(http_unsupported).post(http_unsupported).patch(http_unsupported))
+        // .route("/clear", delete(http_clear))
+        // .route("/clear", get(http_unsupported).put(http_unsupported).post(http_unsupported).patch(http_unsupported))
+        // .route("/table", delete(http_clear))
+        // .route("/table", get(http_get_table_version))
+        // .route("/table", put(http_unsupported).post(http_unsupported).patch(http_unsupported))
         .route("/health", get(healthcheck))
         .route("/health", put(http_unsupported).post(http_unsupported).patch(http_unsupported).delete(http_unsupported))
         .route("/info", get(get_server_info))
