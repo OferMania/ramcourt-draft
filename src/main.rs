@@ -9,23 +9,36 @@ use http_kv::{http_get, http_set, http_delete, http_clear, http_get_table_versio
 use kv::now_secs;
 use server_state::ServerState;
 use server_state::clean_expired;
+use uuid::Uuid;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
     /// Name of the host machine
-    #[arg(short = 'H', long, default_value_t = "localhost".to_string())]
+    #[arg(short = 'H', long, default_value_t = "".to_string())]
     host: String,
 
     /// Name of the rack
-    #[arg(short = 'r', long, default_value_t = "default".to_string())]
+    #[arg(short = 'r', long, default_value_t = "".to_string())]
     rack: String,
+}
+
+fn right_select(a: &String, b: &String) -> String {
+    let result = b.clone();
+    if result.is_empty() {
+        return a.clone();
+    }
+    result
 }
 
 #[tokio::main]
 async fn main() {
+    let mut host = Uuid::new_v4().to_string();
+    let mut rack = Uuid::new_v4().to_string();
     let args = Cli::parse();
-    let state = ServerState::new(args.host, args.rack);
+    host = right_select(&host, &args.host);
+    rack = right_select(&rack, &args.rack);
+    let state = ServerState::new(host, rack);
     tokio::spawn(clean_expired(state.clone()));
 
     let app = Router::new()
