@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, Mutex, MutexGuar
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use crate::kv::load_from_file;
+use crate::kv::persist_to_file;
 
 #[derive(Clone)]
 pub struct ServerState {
@@ -70,6 +71,9 @@ pub async fn clean_expired(state: ServerState) {
             for (_table_name, table) in store.iter_mut() {
                 table.clean(current_time_secs);
             }
+            persist_to_file(&store, &state.path()).unwrap_or_else(|_| {
+                eprintln!("WARNING: failed to persist storage to file");
+            });
         }
     }
 }
