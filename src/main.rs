@@ -1,44 +1,45 @@
 use axum::{Router, routing::{get, put, delete, patch}, response::Html, http::StatusCode};
-use std::sync::{Arc, Mutex, MutexGuard};
+use clap::Parser;
 
 mod kv;
 mod http_kv;
+mod server_state;
 use kv::KeyValue;
-use http_kv::{http_get, http_set, http_delete, http_clear, http_get_table_version, http_set_empty_key, http_unsupported};
+use http_kv::{http_get, http_set, http_delete, http_clear, http_get_table_version, http_set_empty_key, http_unsupported, get_server_info};
 use kv::now_secs;
+use server_state::ServerState;
+use server_state::clean_expired;
+use uuid::Uuid;
 
-pub type SharedStore = Arc<Mutex<KeyValue>>;
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Name of the host machine
+    #[arg(short = 'H', long, default_value_t = "".to_string())]
+    host: String,
 
-// Poison policy: recover and continue (log once). Safe today because every
-// mutation computes first, then does insert + table_version bump, with nothing
-// that can panic in between. Once replicas/recovery exist, revisit: fail-stop
-// and recover from a replica is the more honest policy for a store whose point
-// is never acting on stale state.
-pub fn lock_store(store: &SharedStore) -> MutexGuard<'_, KeyValue> {
-    store.lock().unwrap_or_else(|poisoned| {
-        eprintln!("WARNING: store mutex poisoned by an earlier panic; recovering");
-        store.clear_poison(); // log once, not on every request (Rust 1.77+)
-        poisoned.into_inner()
-    })
+    /// Name of the rack
+    #[arg(short = 'r', long, default_value_t = "".to_string())]
+    rack: String,
 }
 
-async fn clean_expired(store: SharedStore) {
-    let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
-    loop {
-        interval.tick().await;
-        let current_time_secs = now_secs();
-        {
-            let mut store = lock_store(&store);
-            store.clean(current_time_secs);
-        }
+fn right_select(a: &String, b: &String) -> String {
+    let result = b.clone();
+    if result.is_empty() {
+        return a.clone();
     }
+    result
 }
 
 #[tokio::main]
 async fn main() {
-    let store: SharedStore = Arc::new(Mutex::new(KeyValue::new()));
-    let store_clone = Arc::clone(&store);
-    tokio::spawn(clean_expired(store_clone));
+    let mut host = Uuid::new_v4().to_string();
+    let mut rack = Uuid::new_v4().to_string();
+    let args = Cli::parse();
+    host = right_select(&host, &args.host);
+    rack = right_select(&rack, &args.rack);
+    let state = ServerState::new(host, rack);
+    tokio::spawn(clean_expired(state.clone()));
 
     let app = Router::new()
         .route("/", get(root))
@@ -54,7 +55,8 @@ async fn main() {
         .route("/table", put(http_unsupported).post(http_unsupported).patch(http_unsupported))
         .route("/health", get(healthcheck))
         .route("/health", put(http_unsupported).post(http_unsupported).patch(http_unsupported).delete(http_unsupported))
-        .with_state(store);
+        .route("/info", get(get_server_info))
+        .with_state(state);
 
     axum::Server::bind(&"0.0.0.0:8080".parse().unwrap())
         .serve(app.into_make_service())
