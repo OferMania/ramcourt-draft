@@ -21,6 +21,8 @@ pub struct TableRecord {
     pub table_version: Uuid,
 }
 
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct ValueRecord {
     pub duration_secs: u64,
     pub expiration_secs: u64,
@@ -37,6 +39,8 @@ pub fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct KeyValue {
 
     storage: HashMap<String, ValueRecord>,
@@ -212,6 +216,18 @@ impl KeyValue {
             .map(|(k, _)| k.clone())
             .collect()
     }
+}
+
+pub fn persist_to_file(store: &HashMap<String, KeyValue>, path: &str) -> Result<(), String> {
+    let serialized = serde_json::to_string(store).map_err(|e| format!("failed to serialize KeyValue: {}", e))?;
+    std::fs::write(path, serialized).map_err(|e| format!("failed to write KeyValue to file {}: {}", path, e))?;
+    Ok(())
+}
+
+pub fn load_from_file(path: &str) -> Result<HashMap<String, KeyValue>, String> {
+    let data = std::fs::read_to_string(path).map_err(|e| format!("failed to read KeyValue from file {}: {}", path, e))?;
+    let store: HashMap<String, KeyValue> = serde_json::from_str(&data).map_err(|e| format!("failed to deserialize KeyValue from file {}: {}", path, e))?;
+    Ok(store)
 }
 
 #[cfg(test)]

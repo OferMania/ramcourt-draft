@@ -9,7 +9,6 @@ use http_kv::{http_get, http_set, http_delete, http_set_empty_key, http_unsuppor
 use kv::now_secs;
 use server_state::ServerState;
 use server_state::clean_expired;
-use tracing::info;
 use uuid::Uuid;
 
 #[derive(Parser, Debug)]
@@ -22,6 +21,10 @@ struct Cli {
     /// Name of the rack
     #[arg(short = 'r', long, default_value_t = "".to_string())]
     rack: String,
+
+    /// Name of the storage path
+    #[arg(short = 'p', long, default_value_t = "".to_string())]
+    path: String,
 }
 
 fn right_select(a: &String, b: &String) -> String {
@@ -36,15 +39,19 @@ fn right_select(a: &String, b: &String) -> String {
 async fn main() {
     let mut host = Uuid::new_v4().to_string();
     let mut rack = Uuid::new_v4().to_string();
+    let mut path = "data/storage".to_string();
+
     let args = Cli::parse();
     host = right_select(&host, &args.host);
     rack = right_select(&rack, &args.rack);
+    path = right_select(&path, &args.path);
     let host_copy = host.clone();
     let rack_copy = rack.clone();
-    let state = ServerState::new(host, rack);
+    let path_copy = path.clone();
+    let state = ServerState::new(host, rack, path);
     tokio::spawn(clean_expired(state.clone()));
 
-    info!("Server started for host: {}, rack: {}", host_copy, rack_copy);
+    eprintln!("RamCourt Server started for host: {}, rack: {}, storage path: {}", host_copy, rack_copy, path_copy);
 
     let app = Router::new()
         .route("/", get(root))

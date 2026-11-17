@@ -4,18 +4,26 @@ use uuid::Uuid;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, Mutex, MutexGuard};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
+use crate::kv::load_from_file;
+use crate::kv::persist_to_file;
 
 #[derive(Clone)]
 pub struct ServerState {
     registry: Arc<Mutex<ServerRegistry>>,
     tables: Arc<RwLock<HashMap<String, KeyValue>>>,
+    path: String,
 }
 
 impl ServerState {
-    pub fn new(name: String, rack: String) -> Self {
+    pub fn new(name: String, rack: String, path: String) -> Self {
+        let storage = load_from_file(&path).unwrap_or_else(|_| {
+            eprintln!("WARNING: failed to load storage from file, starting with empty storage");
+            HashMap::new()
+        });
         ServerState {
             registry: Arc::new(Mutex::new(ServerRegistry::new(name, rack))),
-            tables: Arc::new(RwLock::new(HashMap::new())),
+            tables: Arc::new(RwLock::new(storage)),
+            path,
         }
     }
 
@@ -47,6 +55,10 @@ impl ServerState {
             poisoned.into_inner()
         })
     }
+
+    pub fn path(&self) -> &str {
+        &self.path
+    }
 }
 
 pub async fn clean_expired(state: ServerState) {
@@ -59,6 +71,9 @@ pub async fn clean_expired(state: ServerState) {
             for (_table_name, table) in store.iter_mut() {
                 table.clean(current_time_secs);
             }
+            persist_to_file(&store, &state.path()).unwrap_or_else(|_| {
+                eprintln!("WARNING: failed to persist storage to file");
+            });
         }
     }
 }
