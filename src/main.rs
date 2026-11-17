@@ -5,10 +5,11 @@ mod kv;
 mod http_kv;
 mod server_state;
 use kv::KeyValue;
-use http_kv::{http_get, http_set, http_delete, http_set_empty_key, http_unsupported, get_server_info};
+use http_kv::{http_get, http_set, http_delete, http_set_empty_key, http_unsupported, enumerate_table, enumerate_tables, get_server_info};
 use kv::now_secs;
 use server_state::ServerState;
 use server_state::clean_expired;
+use tracing::info;
 use uuid::Uuid;
 
 #[derive(Parser, Debug)]
@@ -38,8 +39,12 @@ async fn main() {
     let args = Cli::parse();
     host = right_select(&host, &args.host);
     rack = right_select(&rack, &args.rack);
+    let host_copy = host.clone();
+    let rack_copy = rack.clone();
     let state = ServerState::new(host, rack);
     tokio::spawn(clean_expired(state.clone()));
+
+    info!("Server started for host: {}, rack: {}", host_copy, rack_copy);
 
     let app = Router::new()
         .route("/", get(root))
@@ -48,6 +53,9 @@ async fn main() {
         .route("/kv/:key", delete(http_delete))
         .route("/kv/:key", patch(http_unsupported))
         .route("/kv/", get(http_set_empty_key).put(http_set_empty_key).delete(http_set_empty_key).post(http_unsupported).patch(http_unsupported))
+        .route("/enumerate", get(enumerate_tables).put(http_unsupported).delete(http_unsupported).post(http_unsupported).patch(http_unsupported))
+        .route("/enumerate/", get(enumerate_tables).put(http_unsupported).delete(http_unsupported).post(http_unsupported).patch(http_unsupported))
+        .route("/enumerate/:table", get(enumerate_table).put(http_unsupported).delete(http_unsupported).post(http_unsupported).patch(http_unsupported))
         .route("/health", get(healthcheck))
         .route("/health", put(http_unsupported).post(http_unsupported).patch(http_unsupported).delete(http_unsupported))
         .route("/info", get(get_server_info))
@@ -57,6 +65,7 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
+    
 }
 
 async fn root() -> Html<&'static str> {

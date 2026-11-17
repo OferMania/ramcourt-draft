@@ -4,8 +4,11 @@ use axum::{
     response::IntoResponse,
 };
 
+use serde_json::json;
+
 use crate::kv::KeyValue;
 use crate::kv::KeyValueRecord;
+use crate::kv::TableRecord;
 use crate::kv::now_secs;
 
 use crate::ServerState;
@@ -59,7 +62,13 @@ pub async fn http_set(State(state): State<ServerState>, Path(identifier): Path<S
     }
 
     if !store.contains_key(&table) {
-        return (StatusCode::BAD_REQUEST, Json("table does not exist")).into_response();
+        store.insert(table.clone(), KeyValue::new());
+        match store[&table].get_table_version() {
+            Err(e) => return (StatusCode::BAD_REQUEST, Json(e)).into_response(),
+            _ => {
+                // table created, continue to set the key
+            },
+        }
     }
     match store.get_mut(&table).unwrap().set(key, &payload, current_time_secs) {
         Ok(record) => (StatusCode::OK, Json(record)).into_response(),
@@ -133,4 +142,54 @@ pub async fn http_delete(State(state): State<ServerState>, Path(identifier): Pat
 pub async fn get_server_info(State(state): State<ServerState>) -> impl IntoResponse {
     let registry = state.lock_registry().clone();
     (StatusCode::OK, Json(registry)).into_response()
+}
+
+pub async fn enumerate_tables(State(state): State<ServerState>) -> impl IntoResponse {
+    let store = state.lock_tables_for_read();
+    let mut table_names_versions: Vec<TableRecord> = Vec::new();
+    for (table_name, table) in store.iter() {
+        table_names_versions.push(TableRecord {
+            table_name: table_name.clone(),
+            table_version: table.get_table_version().unwrap_or_else(|_| KeyValueRecord::default()).table_version,
+        });
+    }
+    let result = json!(
+        {
+            "tables": table_names_versions,
+        }
+    );
+    (StatusCode::OK, Json(result)).into_response()
+}
+
+pub async fn enumerate_table(State(state): State<ServerState>, Path(table): Path<String>) -> impl IntoResponse {
+    let store = state.lock_tables_for_read();
+    if !store.contains_key(&table) {
+        return (StatusCode::BAD_REQUEST, Json("table does not exist")).into_response();
+    }
+    let current_time_secs = now_secs();
+    let mut key_values: Vec<KeyValueRecord> = Vec::new();
+    let table_version = store[&table].get_table_version().unwrap_or_else(|_| KeyValueRecord::default()).table_version;
+    for key in store[&table].keys() {
+        match store[&table].get(&key, current_time_secs) {
+            Ok(record) => {
+                key_values.push(KeyValueRecord {
+                    key: key.clone(),
+                    value: record.value.clone(),
+                    duration_secs: record.duration_secs,
+                    expiration_secs: record.expiration_secs,
+                    version: record.version,
+                    table_version,
+                });
+            },
+            Err(_e) => {
+                // skip expired keys
+            },
+        }
+    }
+    let result = json!(
+        {
+            "keys": key_values,
+        }
+    );
+    (StatusCode::OK, Json(result)).into_response()
 }
