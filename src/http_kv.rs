@@ -130,22 +130,6 @@ pub async fn http_delete(State(state): State<ServerState>, Path(identifier): Pat
     }
 }
 
-// pub async fn http_clear(State(state): State<ServerState>, Json(payload): Json<KeyValueRecord>) -> impl IntoResponse {
-//     let mut store = state.lock_tables_for_write();
-//     match store.clear(&payload) {
-//         Ok(record) => (StatusCode::OK, Json(record)).into_response(),
-//         Err(e) => (StatusCode::CONFLICT, Json(e)).into_response(),
-//     }
-// }
-
-// pub async fn http_get_table_version(State(state): State<ServerState>) -> impl IntoResponse {
-//     let store = state.lock_tables_for_read();
-//     match store.get_table_version() {
-//         Ok(table_version) => (StatusCode::OK, Json(table_version)).into_response(),
-//         Err(e) => (StatusCode::BAD_REQUEST, Json(e)).into_response(),
-//     }
-// }
-
 pub async fn get_server_info(State(state): State<ServerState>) -> impl IntoResponse {
     let registry = state.lock_registry().clone();
     (StatusCode::OK, Json(registry)).into_response()
