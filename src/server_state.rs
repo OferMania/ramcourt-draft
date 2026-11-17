@@ -4,18 +4,25 @@ use uuid::Uuid;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, Mutex, MutexGuard};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
+use crate::kv::load_from_file;
 
 #[derive(Clone)]
 pub struct ServerState {
     registry: Arc<Mutex<ServerRegistry>>,
     tables: Arc<RwLock<HashMap<String, KeyValue>>>,
+    path: String,
 }
 
 impl ServerState {
-    pub fn new(name: String, rack: String) -> Self {
+    pub fn new(name: String, rack: String, path: String) -> Self {
+        let storage = load_from_file(&path).unwrap_or_else(|_| {
+            eprintln!("WARNING: failed to load storage from file, starting with empty storage");
+            HashMap::new()
+        });
         ServerState {
             registry: Arc::new(Mutex::new(ServerRegistry::new(name, rack))),
-            tables: Arc::new(RwLock::new(HashMap::new())),
+            tables: Arc::new(RwLock::new(storage)),
+            path,
         }
     }
 
@@ -46,6 +53,10 @@ impl ServerState {
             self.registry.clear_poison(); // log once, not on every request (Rust 1.77+)
             poisoned.into_inner()
         })
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
     }
 }
 
