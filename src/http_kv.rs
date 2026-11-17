@@ -92,7 +92,7 @@ pub async fn http_get(State(state): State<ServerState>, Path(identifier): Path<S
     let current_time_secs = now_secs();
     let store = state.lock_tables_for_read();
     if !store.contains_key(&table) {
-        return (StatusCode::BAD_REQUEST, Json("table does not exist")).into_response();
+        return (StatusCode::NOT_FOUND, Json("table not found")).into_response();
     }
     if key.is_empty() {
         match store[&table].get_table_version() {
@@ -117,7 +117,7 @@ pub async fn http_delete(State(state): State<ServerState>, Path(identifier): Pat
     let current_time_secs = now_secs();
     let mut store = state.lock_tables_for_write();
     if !store.contains_key(&table) {
-        return (StatusCode::BAD_REQUEST, Json("table does not exist")).into_response();
+        return (StatusCode::NOT_FOUND, Json("table not found")).into_response();
     }
     if key.is_empty() {
         match store.get_mut(&table).unwrap().clear(&payload) {
@@ -164,7 +164,7 @@ pub async fn enumerate_tables(State(state): State<ServerState>) -> impl IntoResp
 pub async fn enumerate_table(State(state): State<ServerState>, Path(table): Path<String>) -> impl IntoResponse {
     let store = state.lock_tables_for_read();
     if !store.contains_key(&table) {
-        return (StatusCode::BAD_REQUEST, Json("table does not exist")).into_response();
+        return (StatusCode::NOT_FOUND, Json("table not found")).into_response();
     }
     let current_time_secs = now_secs();
     let mut key_values: Vec<KeyValueRecord> = Vec::new();
