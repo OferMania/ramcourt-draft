@@ -14,6 +14,13 @@ pub struct KeyValueRecord {
     pub table_version: Uuid,
 }
 
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct TableRecord {
+    pub table_name: String,
+    pub table_version: Uuid,
+}
+
 pub struct ValueRecord {
     pub duration_secs: u64,
     pub expiration_secs: u64,
@@ -198,6 +205,12 @@ impl KeyValue {
             table_version: self.table_version,
         };
         Ok(external_record)
+    }
+
+    pub fn keys(&self) -> Vec<String> {
+        self.storage.iter()
+            .map(|(k, _)| k.clone())
+            .collect()
     }
 }
 
