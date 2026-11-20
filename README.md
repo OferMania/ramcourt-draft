@@ -112,7 +112,7 @@ RamCourt's HTTP API is tested using clstr-rc, a fork of [clstr](https://github.c
 
 ## Known Limitations
 
-- Single global table only; no multi-table support yet.
+- Multi-table support is ready, and entire node persists, but no support for persist-interruption yet.
 - Single node only; no backup propagation or replication between nodes yet.
 - Recovery; if a node goes down, no attempt is made to recover its data from other nodes and make a different node primary owner for that data.
 
@@ -166,6 +166,7 @@ Here is a current list of Discussion Documents for RamCourt:
 
 - [Design Notes](./docs/design-notes.md)
 - [Why UUID for Versions](./docs/why-uuid-versions.md)
+- [RamCourt Basic Persistence](./docs/ramcourt-basic-persistence.md)
 
 ## License
 
